@@ -7,3 +7,4 @@ Allows users to login to their accounts if they have access to an email account 
 3. Open your email and click the login link.
 4. Done.
 
+https://user-images.githubusercontent.com/302736/209352322-ab13609b-d9e1-401d-a193-60b4bf71fe0a.mp4
