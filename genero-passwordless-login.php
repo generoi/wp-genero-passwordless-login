@@ -96,7 +96,7 @@ add_filter('authenticate', function ($user, string $username, string $password) 
         return $user;
     }
 
-    $account = get_user_by('login', PASSWORDLESS_ADMIN_ACCOUNT);
+    $account = get_user_by('email', $username);
     if (! $account) {
         return $user;
     }
