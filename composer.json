@@ -1,0 +1,32 @@
+{
+  "name": "generoi/wp-passwordless-login",
+  "type": "wordpress-plugin",
+  "license": "MIT",
+  "description": "Let users log in without a password",
+  "homepage": "https://github.com/generoi/wp-passwordless-login",
+  "authors": [
+    {
+      "name": "Oskar Schöldström",
+      "email": "public@oxy.fi"
+    }
+  ],
+  "keywords": [
+    "wordpress"
+  ],
+  "require": {
+    "php": ">=7.4.0"
+  },
+  "require-dev": {
+    "squizlabs/php_codesniffer": "^3.5"
+  },
+  "archive" : {
+    "exclude": [
+      ".editorconfig",
+      ".gitattributes",
+      ".gitignore"
+    ]
+  },
+  "scripts": {
+    "test": "phpcs"
+  }
+}
