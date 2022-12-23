@@ -60,7 +60,11 @@ add_filter('authenticate', function ($user) {
         return $user;
     }
 
-    if (isValidTokenLogin($uid, $token, $nonce)) {
+    if (! wp_verify_nonce($nonce, PASSWORDLESS_NONCE_ACTION)) {
+        return $user;
+    }
+
+    if (isValidTokenLogin($uid, $token)) {
         delete_user_meta($uid, "passwordless_{$uid}");
         delete_user_meta($uid, "passwordless_{$uid}_expiration");
 
@@ -129,17 +133,16 @@ add_filter('authenticate', function ($user, string $username, string $password) 
 /**
  * Validate that a token is valid for the user and hasn't expired.
  */
-function isValidTokenLogin(int $uid, string $token, string $nonce): bool
+function isValidTokenLogin(int $uid, string $token): bool
 {
     $storedHash = get_user_meta($uid, "passwordless_{$uid}", true);
     $expiration = get_user_meta($uid, "passwordless_{$uid}_expiration", true);
 
     $time = time();
     $isValidToken = wp_check_password($token . $expiration, $storedHash);
-    $isValidNonce = wp_verify_nonce($nonce, PASSWORDLESS_NONCE_ACTION);
     $isExpired = $expiration < $time;
 
-    if ($isValidToken && $isValidNonce && ! $isExpired) {
+    if ($isValidToken && ! $isExpired) {
         return true;
     }
     return false;
@@ -201,7 +204,7 @@ function createToken(WP_User $user): string
 {
     $action = "passwordless_{$user->ID}";
     $time = time();
-    $salt = wp_generate_password(32);
+    $salt = wp_generate_password(32, true, true);
 
     $token  = wp_hash($salt . $action . $time);
     $expiration = $time + PASSWORDLESS_TOKEN_TTL;
