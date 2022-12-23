@@ -92,7 +92,8 @@ add_filter('authenticate', function ($user, string $username, string $password) 
     // Only act on our domain
     $domain = explode('@', $username);
     $domain = array_pop($domain);
-    if ($domain !== PASSWORDLESS_VALID_EMAIL_DOMAIN) {
+    $passwordlessDomains = apply_filters('passwordless_domains', [PASSWORDLESS_VALID_EMAIL_DOMAIN]);
+    if (! in_array($domain, $passwordlessDomains)) {
         return $user;
     }
 
