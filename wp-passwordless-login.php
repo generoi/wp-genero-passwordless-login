@@ -34,7 +34,11 @@ add_action('login_form', function () {
 });
 
 /**
- * Attempt the login when having landed from an email link.
+ * Attempt the authentication when visitor lands on wp-login.php from the token
+ * link in the email.
+ *
+ * Note that this runs on priority 18, one before the step that sends the auth
+ * link.
  *
  * @param WP_User|WP_Error|null $user
  */
@@ -69,8 +73,14 @@ add_filter('authenticate', function ($user) {
 }, 18);
 
 /**
- * Take over the regular login authentication (which has priority 20) and send
- * the login by email when not submitting a password.
+ * Check if the user is attempting and is allowed to authenticate by email. This
+ * attempt is recognized by leaving the password field empty which in the next
+ * auth step (priority 20), would trigger an "empty password" error.
+ *
+ * If the email exists as a user account and is allowed to authenticate by email
+ * we send a token authorized link that's valid for 10 minutes to the users
+ * email address and shortcircuit all other auth methods by returning an
+ * "error".
  *
  * @param WP_User|WP_Error|null $user
  */
@@ -116,6 +126,9 @@ add_filter('authenticate', function ($user, string $username, string $password) 
     return $error;
 }, 19, 3);
 
+/**
+ * Validate that a token is valid for the user and hasn't expired.
+ */
 function isValidTokenLogin(int $uid, string $token, string $nonce): bool
 {
     $storedHash = get_user_meta($uid, "passwordless_{$uid}", true);
@@ -132,6 +145,9 @@ function isValidTokenLogin(int $uid, string $token, string $nonce): bool
     return false;
 }
 
+/**
+ * Send a login link to the recipient.
+ */
 function sendLoginLink(string $recipient, string $loginUrl): bool
 {
     $recipient = filter_var($recipient, FILTER_VALIDATE_EMAIL);
@@ -157,12 +173,17 @@ function sendLoginLink(string $recipient, string $loginUrl): bool
     ]);
 }
 
+/**
+ * Build a URL that allows users to authenticate by opening it in their browser.
+ * This URL points to /wp-login.php and includes the user id, a short lived auth
+ * token and the nonce that was used to initially submit the form.
+ */
 function generateLoginUrl(WP_User $user, string $nonce, string $redirect): string
 {
     $url = site_url('wp-login.php');
     $url = add_query_arg([
         'uid' => $user->ID,
-        'token' =>  createToken($user),
+        'token' => createToken($user),
         'nonce' => $nonce,
     ], $url);
 
@@ -173,6 +194,9 @@ function generateLoginUrl(WP_User $user, string $nonce, string $redirect): strin
     return $url;
 }
 
+/**
+ * Issue a short lived token that allows the user to authenticate.
+ */
 function createToken(WP_User $user): string
 {
     $action = "passwordless_{$user->ID}";
