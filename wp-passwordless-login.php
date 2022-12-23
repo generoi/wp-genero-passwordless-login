@@ -1,9 +1,9 @@
 <?php
 
 /*
-Plugin Name:  Genero Passwordless Login
+Plugin Name:  WP Passwordless Login
 Plugin URI:   https://genero.fi
-Description:  Let genero adminsitrators log in without a password
+Description:  Let users log in without a password
 Version:      1.0.0
 Author:       Genero
 Author URI:   https://genero.fi/
@@ -12,14 +12,14 @@ License:      MIT License
 
 namespace Genero\PasswordlessLogin;
 
-use PasswordHash;
 use WP_Error;
 use WP_User;
 
+defined('ABSPATH') or die();
+
 define('PASSWORDLESS_NONCE_NAME', '_passwordless_nonce');
 define('PASSWORDLESS_NONCE_ACTION', 'passwordless_login_request');
-define('PASSWORDLESS_VALID_EMAIL_DOMAIN', 'genero.fi');
-define('PASSWORDLESS_ADMIN_ACCOUNT', 'gadmin');
+define('PASSWORDLESS_TOKEN_TTL', MINUTE_IN_SECONDS * 10);
 
 /**
  * Add a nonce field to login form.
@@ -64,7 +64,7 @@ add_filter('authenticate', function ($user) {
     }
 
     $error = new WP_Error();
-    $error->add('passwordless_error', __('The passwordless login was unsucessful.'));
+    $error->add('passwordless_error', __('The passwordless login was unsucessful.', 'wp-passwordless-login'));
     return $error;
 }, 18);
 
@@ -89,12 +89,14 @@ add_filter('authenticate', function ($user, string $username, string $password) 
         return $user;
     }
 
-    // Only act on our domain
-    $domain = explode('@', $username);
-    $domain = array_pop($domain);
-    $passwordlessDomains = apply_filters('passwordless_domains', [PASSWORDLESS_VALID_EMAIL_DOMAIN]);
-    if (! in_array($domain, $passwordlessDomains)) {
-        return $user;
+    // Only act on allowed domain
+    $passwordlessDomains = apply_filters('passwordless_domains', []);
+    if (! empty($passwordlessDomains)) {
+        $domain = explode('@', $username);
+        $domain = array_pop($domain);
+        if (! in_array($domain, $passwordlessDomains)) {
+            return $user;
+        }
     }
 
     $account = get_user_by('email', $username);
@@ -109,7 +111,7 @@ add_filter('authenticate', function ($user, string $username, string $password) 
     }
 
     $error = new WP_Error();
-    $error->add('email_sent', __('Please check your email to finish login.'));
+    $error->add('email_sent', __('Please check your email to finish login.', 'wp-passwordless-login'));
 
     return $error;
 }, 19, 3);
@@ -119,11 +121,8 @@ function isValidTokenLogin(int $uid, string $token, string $nonce): bool
     $storedHash = get_user_meta($uid, "passwordless_{$uid}", true);
     $expiration = get_user_meta($uid, "passwordless_{$uid}_expiration", true);
 
-    require_once ABSPATH . 'wp-includes/class-phpass.php';
-    $hasher = new PasswordHash(8, true);
     $time = time();
-
-    $isValidToken = $hasher->CheckPassword($token . $expiration, $storedHash);
+    $isValidToken = wp_check_password($token . $expiration, $storedHash);
     $isValidNonce = wp_verify_nonce($nonce, PASSWORDLESS_NONCE_ACTION);
     $isExpired = $expiration < $time;
 
@@ -142,9 +141,12 @@ function sendLoginLink(string $recipient, string $loginUrl): bool
 
     $siteName = esc_attr(get_bloginfo('name'));
 
-    $subject = sprintf(__('Passwordless login on: %s'), $siteName);
+    $subject = sprintf(__('Passwordless login to: %s', 'wp-passwordless-login'), $siteName);
     $message = sprintf(
-        __('Ahoy! <br><br>Log in to %s by visiting this url: <a href="%s" target="_blank">%s</a>'),
+        __(
+            'Ahoy! <br><br>Log in to %s by visiting this url: <a href="%s" target="_blank">%s</a>',
+            'wp-passwordless-login'
+        ),
         $siteName,
         esc_url($loginUrl),
         esc_url($loginUrl),
@@ -175,17 +177,12 @@ function createToken(WP_User $user): string
 {
     $action = "passwordless_{$user->ID}";
     $time = time();
-    // random salt
-    $key = wp_generate_password(20, false);
+    $salt = wp_generate_password(32);
 
-    require_once ABSPATH . 'wp-includes/class-phpass.php';
-    $hasher = new PasswordHash(8, true);
-    $string = $key . $action . $time;
+    $token  = wp_hash($salt . $action . $time);
+    $expiration = $time + PASSWORDLESS_TOKEN_TTL;
 
-    $token  = wp_hash($string);
-    $expiration = $time + MINUTE_IN_SECONDS * 10;
-
-    $storedHash = $hasher->HashPassword($token . $expiration);
+    $storedHash = wp_hash_password($token . $expiration);
     update_user_meta($user->ID, $action, $storedHash);
     update_user_meta($user->ID, "{$action}_expiration", $expiration);
     return $token;
