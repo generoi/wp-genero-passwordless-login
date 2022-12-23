@@ -12,15 +12,14 @@ License:      MIT License
 
 namespace Genero\PasswordlessLogin;
 
+use PasswordHash;
+use WP_Error;
+use WP_User;
+
 define('PASSWORDLESS_NONCE_NAME', '_passwordless_nonce');
 define('PASSWORDLESS_NONCE_ACTION', 'passwordless_login_request');
 define('PASSWORDLESS_VALID_EMAIL_DOMAIN', 'genero.fi');
 define('PASSWORDLESS_ADMIN_ACCOUNT', 'gadmin');
-
-use Exception;
-use PasswordHash;
-use WP_Error;
-use WP_User;
 
 /**
  * Add a nonce field to login form.
@@ -39,7 +38,7 @@ add_action('login_form', function () {
  *
  * @param WP_User|WP_Error|null $user
  */
-add_filter('authenticate', function ($user, string $username, string $password) {
+add_filter('authenticate', function ($user) {
     if ($user instanceof WP_User) {
         return $user;
     }
@@ -67,7 +66,7 @@ add_filter('authenticate', function ($user, string $username, string $password) 
     $error = new WP_Error();
     $error->add('passwordless_error', __('The passwordless login was unsucessful.'));
     return $error;
-}, 18, 3);
+}, 18);
 
 /**
  * Take over the regular login authentication (which has priority 20) and send
